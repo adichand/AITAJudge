@@ -163,3 +163,5 @@ reddit-cache.db
 .DS_Store
 praw.ini
 screenshot.png
+
+dataset/posts.csv
