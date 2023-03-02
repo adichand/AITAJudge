@@ -1,8 +1,8 @@
 {
-  "screencap_origin": [50,30],
-  "screencap_size": [640, 480],
+  "screencap_origin": [640, 360],
+  "screencap_size": [1280, 720],
   "screencap_fps": 30,
-  "camera_size": [640, 480],
+  "camera_size": [1280, 720],
   "camera_fps": 30,
   "audio_rate": 44100,
   "audio_bps": 128000,
@@ -24,6 +24,7 @@
     "video_format": "uyvy422",
     "screen_chan": "1:0",
     "audio_chan": "default",
+    "acap": "dshow",
     "vcap": "avfoundation",
     "hcam": "avfoundation"
   },
@@ -39,6 +40,8 @@
   "sites":{
     "localhost": {
       "keyframe_sec": 2,
+      "video_kbps": 2500,
+      "audio_bps": 128000,
       "url": "rtmp://localhost"
     },
     "file": {

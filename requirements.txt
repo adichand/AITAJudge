@@ -4,8 +4,7 @@ praw
 requests
 playwright
 pandas
-PyLivestream
+git+https://github.com/anivegesana/PyLivestream
 pyrtmp
 gTTS
-moviepy
 diskhash==0.4.2

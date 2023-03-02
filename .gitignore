@@ -162,6 +162,7 @@ cython_debug/
 .DS_Store
 praw.ini
 
+reddit-cache.db
 inference/reddit-cache.db
 inference/played.db
 inference/streams/*

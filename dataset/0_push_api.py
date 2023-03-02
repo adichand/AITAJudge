@@ -19,6 +19,7 @@ def getPushshiftData(after, before):
 title = list()
 timestamps = list()
 post_ids = list()
+urls = list()
 self_texts = list()
 score = list()
 edited = list()
@@ -34,6 +35,7 @@ while first or after < last_epoch:
         timestamps.append(int(post['created_utc']))
         self_texts.append(post['selftext'])
         post_ids.append(post['id'])
+        urls.append(post['url'])
         score.append(post['score'])
         edited.append(post['edited'])
         link_flair_texts.append(post['link_flair_text'])
@@ -43,6 +45,7 @@ while first or after < last_epoch:
         timestamps.pop()
         self_texts.pop()
         post_ids.pop()
+        urls.pop()
         score.pop()
         edited.pop()
         link_flair_texts.pop()
@@ -56,6 +59,7 @@ while first or after < last_epoch:
 # Write to a csv file
 d = {
     'id':post_ids,
+    'url':urls,
     'title':title,
     'timestamp':timestamps,
     'score':score,
