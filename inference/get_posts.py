@@ -4,6 +4,9 @@ import datetime
 import textwrap
 import shelve
 import typing
+import os
+
+shelf_loc = os.path.join(os.path.dirname(__file__), 'reddit-cache')
 
 
 class Post(typing.NamedTuple):
@@ -26,7 +29,7 @@ def _(post):
 
 
 def get_top_json(sub):
-  with shelve.open('reddit-cache') as d:
+  with shelve.open(shelf_loc) as d:
     if sub in d:
       top_json, fetch_time = d[sub]
     else:
@@ -39,7 +42,7 @@ def get_top_json(sub):
   return top_json, fetch_time
 
 def flush_json(sub):
-  with shelve.open('reddit-cache') as d:
+  with shelve.open(shelf_loc) as d:
     del d[sub]
 
 def top_posts(sub):
@@ -52,6 +55,10 @@ def top_posts(sub):
   posts = top_json['data']['children']
   return posts
 
+def top_posts_text_url(sub):
+  for post in top_posts(sub):
+    selftext, url = _subreddits_content_getters[sub](post)
+    yield selftext, url
 
 def show_posts(sub):
   for post in top_posts(sub):
@@ -62,8 +69,8 @@ def show_posts(sub):
     print('\n'.join(textwrap.wrap(selftext)))
     print()
 
-
-show_posts('AITAFiltered')
+if __name__ == '__main__':
+  show_posts('AITAFiltered')
 
 
 # https://reddit.com/r/redditdev/comments/t9dems/praw_reddit_api_get_top_comment_for_each_post/

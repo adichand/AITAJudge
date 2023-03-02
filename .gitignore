@@ -159,9 +159,12 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-reddit-cache.db
 .DS_Store
 praw.ini
-screenshot.png
+
+inference/reddit-cache.db
+inference/played.db
+inference/streams/*
+!inference/streams/.gitkeep
 
 dataset/posts.csv

@@ -4,3 +4,8 @@ praw
 requests
 playwright
 pandas
+PyLivestream
+pyrtmp
+gTTS
+moviepy
+diskhash==0.4.2

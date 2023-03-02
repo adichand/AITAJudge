@@ -1,3 +1,4 @@
+# Deprecated. Use get_audio.py
 import textwrap
 
 from dotenv import load_dotenv
@@ -5,6 +6,11 @@ load_dotenv()
 
 from playwright.sync_api import sync_playwright
 import praw
+
+import os
+
+browser_type = os.getenv('AITA_BROWSER', 'chromium')
+assert browser_type in ('chromium', 'firefox', 'webkit')
 
 reddit = praw.Reddit()
 subreddit = reddit.subreddit('AmItheAsshole')
@@ -16,7 +22,7 @@ url = submission.url
 print('\n'.join(textwrap.wrap(selftext)))
 
 with sync_playwright() as p:
-    browser = p.chromium.launch()
+    browser = p[browser_type].launch()
     page = browser.new_page()
     page.goto(url)
     page.mouse.wheel(0, 224)
