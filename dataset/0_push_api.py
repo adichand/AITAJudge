@@ -5,11 +5,15 @@ import json
 import pandas as pd
 import time
 
-first_epoch = '3h'
+first_epoch = '24h'
 last_epoch = int(time.time())
 
 def getPushshiftData(after, before):
-    url = 'https://api.pushshift.io/reddit/submission/search/?sort=created_utc&order=asc&subreddit=amitheasshole&after='+ str(after) +"&before"+str(before)+"&size=1000"
+    #sortby = 'created_utc'
+    #order = 'asc'
+    sortby = 'score'
+    order = 'desc'
+    url = f'https://api.pushshift.io/reddit/submission/search/?sort={sortby}&order={order}&subreddit=amitheasshole&after={str(after)}&before={str(before)}&size=1000'
     print(url)
     r = requests.get(url)
     data = json.loads(r.text)
@@ -37,6 +41,7 @@ while first or after < last_epoch:
         post_ids.append(post['id'])
         urls.append(post['url'])
         score.append(post['score'])
+        # print(post['score'])
         edited.append(post['edited'])
         link_flair_texts.append(post['link_flair_text'])
         num_comments.append(post['num_comments'])
