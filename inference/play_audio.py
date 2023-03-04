@@ -6,13 +6,22 @@ from pathlib import Path
 import signal
 import argparse
 import os
+import sqlite3
+import itertools
+import operator
+import functools
 
 from pylivestream.base import FileIn
 from pylivestream.glob import fileglob
 from pylivestream.ffmpeg import get_meta
 
+inference_folder = os.path.dirname(__file__)
+
+played_dht = os.path.join(inference_folder, 'played.db')
+
 
 def stream_files(
+    cur: sqlite3.Connection,
     ini_file: Path,
     websites: list[str],
     *,
@@ -25,6 +34,9 @@ def stream_files(
 ):
     # %% file / glob wranging
     flist = fileglob(video_path, glob)
+    removed_posts = cur.execute('SELECT PostId FROM Posts WHERE Removed')
+    remove_from = {post_id + '.mp3' for post_id, in removed_posts.fetchall()}
+    flist = [*itertools.filterfalse(functools.partial(operator.contains, remove_from), flist)]
 
     print("streaming these files. Be sure list is correct! \n")
     print("\n".join(map(str, flist)))
@@ -37,12 +49,13 @@ def stream_files(
 
     if loop:
         while True:
-            playonce(flist, image_suffix, websites, ini_file, shuffle, assume_yes)
+            playonce(cur, flist, image_suffix, websites, ini_file, shuffle, assume_yes)
     else:
-        playonce(flist, image_suffix, websites, ini_file, shuffle, assume_yes)
+        playonce(cur, flist, image_suffix, websites, ini_file, shuffle, assume_yes)
 
 
 def playonce(
+    cur: sqlite3.Connection,
     flist: list[Path],
     image_suffix: str,
     sites: list[str],
@@ -75,6 +88,14 @@ def playonce(
 
         s.golive()
 
+        cur.execute("""
+        INSERT OR IGNORE INTO Posts VALUES (?, 0, 0);
+        """, (f.stem,))
+        cur.execute("""
+        UPDATE Posts SET Played = Played + 1 WHERE PostId LIKE ?;
+        """, (f.stem,))
+        cur.commit()
+
 
 def cli():
     signal.signal(signal.SIGINT, signal.SIG_DFL)
@@ -83,7 +104,7 @@ def cli():
     p.add_argument(
         "websites",
         help="site to stream, e.g. localhost youtube facebook twitch",
-        nargs="+",
+        nargs="+"
     )
     p.add_argument("-path", help="path to discover files from", default='')
     p.add_argument("-json", help="JSON file with stream parameters such as key", default='../pylivestream.json')
@@ -94,16 +115,21 @@ def cli():
     p.add_argument("-y", "--yes", help="no confirmation dialog", action="store_true")
     P = p.parse_args()
 
-    stream_files(
-        ini_file=P.json,
-        websites=P.websites,
-        assume_yes=P.yes,
-        loop=P.loop,
-        video_path=P.path,
-        glob=P.glob,
-        shuffle=P.shuffle,
-        image_suffix=P.image_suffix,
-    )
+    try:
+        cur = sqlite3.connect(played_dht)
+        stream_files(
+            cur=cur,
+            ini_file=P.json,
+            websites=P.websites,
+            assume_yes=P.yes,
+            loop=P.loop,
+            video_path=P.path,
+            glob=P.glob,
+            shuffle=P.shuffle,
+            image_suffix=P.image_suffix,
+        )
+    finally:
+        cur.close()
 
 
 if __name__ == "__main__":

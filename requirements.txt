@@ -6,4 +6,6 @@ playwright
 pandas
 git+https://github.com/anivegesana/PyLivestream
 gTTS
-diskhash==0.4.2
+tqdm
+scikit-learn
+opencv-python
