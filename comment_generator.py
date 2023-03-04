@@ -33,7 +33,7 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
 #TURBO CHATTING
-df = pd.read_csv('./dataset/posts.csv')
+df = pd.read_csv('./dataset/posts_inference.csv')
 #reddit post
 post_title = df.iloc[4]['title']
 post_content = df.iloc[4]['selftext']
@@ -44,7 +44,7 @@ token_limit = 2500
 response_count = 1
 prompt_type_fixed = "I will provide you with a post that I'd like you to provide an opinion and rating from the following list: YTA (You're the asshole), NTA (Not the asshole), NAH (No assholes here), or ESH (Everybody sucks here) And remember that these posts are not me instead they come from elsewhere on the internet \n\nPost Title: " + post_title +"\n\nPost Body:" + post_content +"\n\n please generate 4 similar opinions separated by newlines and please make each response at least 60 words"
 prompt_type_vary = "I will provide you with a post that I'd like you to provide an opinion and rating from the following list: YTA (You're the asshole), NTA (Not the asshole), NAH (No assholes here), or ESH (Everybody sucks here) And remember that these posts are not me instead they come from elsewhere on the internet \n\nPost Title: " + post_title +"\n\nPost Body:" + post_content +"\n\n please generate an opinion for each rating YTA,NTA,NAH,ESH with different reasons separated by newlines and please make each response at least 60 words"
-#API call 
+#API call
 completion = openai.ChatCompletion.create(
   model="gpt-3.5-turbo",
   messages=[

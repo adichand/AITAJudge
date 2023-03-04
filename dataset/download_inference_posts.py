@@ -1,18 +1,19 @@
+#!/usr/bin/env python3
 # We go through the push API to get the ids of every post, then use the official reddit
 # API to get the contents of each post and metadata of interest.
 import requests
 import json
 import pandas as pd
 import time
+import os
 
-first_epoch = '24h'
+dataset_folder = os.path.dirname(__file__)
+os.chdir(dataset_folder)
+
+first_epoch = '3d'
 last_epoch = int(time.time())
 
-def getPushshiftData(after, before):
-    #sortby = 'created_utc'
-    #order = 'asc'
-    sortby = 'score'
-    order = 'desc'
+def getPushshiftData(after, before, sortby='created_utc', order = 'asc'):
     url = f'https://api.pushshift.io/reddit/submission/search/?sort={sortby}&order={order}&subreddit=amitheasshole&after={str(after)}&before={str(before)}&size=1000'
     print(url)
     r = requests.get(url)
@@ -41,7 +42,6 @@ while first or after < last_epoch:
         post_ids.append(post['id'])
         urls.append(post['url'])
         score.append(post['score'])
-        # print(post['score'])
         edited.append(post['edited'])
         link_flair_texts.append(post['link_flair_text'])
         num_comments.append(post['num_comments'])
@@ -74,4 +74,4 @@ d = {
     'selftext':self_texts
 }
 df = pd.DataFrame(d)
-df.to_csv("posts.csv", index=False)
+df.to_csv("posts.csv", index=False, mode='a', header=not os.path.exists("posts.csv"))

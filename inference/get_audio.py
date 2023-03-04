@@ -28,7 +28,7 @@ def get_videos(posts, limit=-1):
       selftext = post['selftext']
       url = post['url']
       redd_id = post['id']
-      if selftext in ('[removed]', '[deleted]') or tb.lookup(redd_id): # will be none by default
+      if tb.lookup(redd_id): # will be none by default
         continue
       if not os.path.exists(f'{redd_id}.png'):
         print(f"capture {redd_id}")
@@ -49,7 +49,7 @@ def get_videos(posts, limit=-1):
 if __name__ == '__main__':
   import argparse
   p = argparse.ArgumentParser(description="Download audio snippets ")
-  p.add_argument("-path", help="path of the posts.csv from the dataset", default='../dataset/posts.csv')
+  p.add_argument("-path", help="path of the posts.csv from the dataset", default='../dataset/posts_inference.csv')
   p.add_argument("-limit", help="the number of audio clips to download", type=int, default=-1)
   P = p.parse_args()
 
