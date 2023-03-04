@@ -38,7 +38,6 @@ def get_videos(posts, limit=-1):
       if not os.path.exists(f'{redd_id}.mp3'):
         print(f"tts {redd_id}")
         tts = gTTS(selftext, lang='en')
-        redd_id = url.split('/')[6]
         with open(f'{redd_id}.mp3', 'wb') as f:
           tts.write_to_fp(f)
         new_snips += 1
