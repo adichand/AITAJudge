@@ -71,6 +71,7 @@ def get_videos(posts, limit=-1):
             cur.execute('INSERT INTO Posts VALUES (?,?,?)', (redd_id, True, 0))
             cur.commit()
             print(f'{redd_id} was removed')
+            continue
 
         if not os.path.exists(f'{redd_id}.mp3'):
           print(f"tts {redd_id}")
