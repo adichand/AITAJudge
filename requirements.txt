@@ -2,10 +2,9 @@ openai
 python-dotenv
 praw
 requests
-playwright
 pandas
 gTTS
 tqdm
 scikit-learn
-opencv-python
+selenium
 ffmpeg-python

@@ -7,31 +7,11 @@ load_dotenv()
 
 import sqlite3
 from gtts import gTTS
-from selenium import webdriver
-from xml.dom import minidom
+from playwright.sync_api import sync_playwright
+import cv2
 
-browsers = {
-  'chrome': webdriver.Chrome,
-}
-browser_options = {
-  'chrome': webdriver.chrome.options.Options(),
-}
-chrome = browser_options['chrome']
-chrome.add_argument("--headless")
-# chrome.add_argument("--window-size=640,360")
-chrome.add_argument("--enable-use-zoom-for-dsf=false")
-chrome.add_argument("--hide-scrollbars")
-chrome.add_argument("--mute-audio")
-chrome.add_argument("--disable-default-apps")
-chrome.add_argument("--disable-extensions")
-chrome.add_argument("--disable-component-update")
-chrome.add_argument("--disable-back-forward-cache")
-chrome.add_argument("--disable-backgrounding-occluded-windows")
-
-
-
-browser_type = os.getenv('AITA_BROWSER', 'chrome')
-assert browser_type in ('chrome',)
+browser_type = os.getenv('AITA_BROWSER', 'chromium')
+assert browser_type in ('chromium', 'firefox', 'webkit')
 
 inference_folder = os.path.dirname(__file__)
 
@@ -53,15 +33,24 @@ if not os.path.exists(played_dht):
   cur.commit()
   cur.close()
 
-removed_im_path = os.path.join(inference_folder, 'removed.svg')
-removed_im = minidom.parse(removed_im_path).getElementsByTagName('path')[0].getAttribute('d')
-deleted_im_path = os.path.join(inference_folder, 'deleted.svg')
-deleted_im = minidom.parse(deleted_im_path).getElementsByTagName('path')[0].getAttribute('d')
+removed_im_path = os.path.join(inference_folder, 'removed.png')
+removed_im = cv2.imread(removed_im_path)
+deleted_im_path = os.path.join(inference_folder, 'deleted.png')
+deleted_im = cv2.imread(deleted_im_path)
+removed_im_threshold = 0.8
+
+def was_removed(im):
+  for other_im in [removed_im, deleted_im]:
+    if (cv2.matchTemplate(im, other_im, cv2.TM_CCOEFF_NORMED) >= removed_im_threshold).any():
+      return True
+  return False
 
 def get_videos(posts, limit=-1):
-  with browsers[browser_type](options=browser_options[browser_type]) as driver:
+  with sync_playwright() as p:
+    browser = p[browser_type].launch()
     try:
       cur = sqlite3.connect(played_dht)
+      page = browser.new_page()
       new_snips = 0
       for post in posts:
         selftext = post['selftext']
@@ -72,19 +61,13 @@ def get_videos(posts, limit=-1):
         im_path = f'{redd_id}.png'
         if not os.path.exists(im_path):
           print(f"capture {redd_id}")
-          driver.get(url)
-          (
-            webdriver.ActionChains(driver)
-              .scroll_by_amount(0, 224)
-              .perform()
-          )
-          driver.save_screenshot(im_path)
+          page.goto(url)
+          page.mouse.wheel(0, 224)
+          page.screenshot(path=im_path)
 
-          # Test to see if the page was removed
-          if any(
-            tag.get_attribute('d') in (removed_im, deleted_im)
-            for tag in driver.find_elements(webdriver.common.by.By.TAG_NAME, 'path')
-          ):
+          # Test to see if the page was removed using OpenCV
+          im = cv2.imread(im_path)
+          if was_removed(im):
             cur.execute('INSERT INTO Posts VALUES (?,?,?)', (redd_id, True, 0))
             cur.commit()
             print(f'{redd_id} was removed')
@@ -100,6 +83,7 @@ def get_videos(posts, limit=-1):
           break
     finally:
       cur.close()
+      browser.close()
 
 
 if __name__ == '__main__':
