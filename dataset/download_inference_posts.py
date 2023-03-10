@@ -12,8 +12,13 @@ os.chdir(dataset_folder)
 
 from utils import PostTable
 
-first_epoch = '3d'
-last_epoch = int(time.time())
+first_epoch = '7d'
+last_epoch = '6d'
+
+if last_epoch is None:
+    last_epoch = int(time.time())
+elif isinstance(last_epoch, str):
+    last_epoch = int(time.time() - pd.Timedelta(last_epoch).total_seconds())
 
 def getPushshiftData(after, before, sortby='created_utc', order = 'asc'):
     url = f'https://api.pushshift.io/reddit/submission/search/?sort={sortby}&order={order}&subreddit=amitheasshole&after={str(after)}&before={str(before)}&size=1000'
