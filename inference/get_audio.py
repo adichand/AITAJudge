@@ -3,6 +3,7 @@ import asyncio
 import csv
 import os
 import io
+from xml.dom import minidom
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -10,7 +11,6 @@ load_dotenv()
 import sqlite3
 from gtts import gTTS
 from selenium import webdriver
-from xml.dom import minidom
 import PIL.Image
 
 browsers = {

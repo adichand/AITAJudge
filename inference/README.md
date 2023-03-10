@@ -12,7 +12,7 @@ conda activate aita-judge
 ## Option 2: pip
 1) Install Chrome if it isn't already on your machine
 
-2) Install ffmpeg if it isn't already on your machine (Linux and Mac probably already have it)
+2) Install ffmpeg if it isn't already on your machine (Linux probably already has it)
 
 3) Run the following command
 ```sh

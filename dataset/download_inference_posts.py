@@ -24,6 +24,8 @@ def getPushshiftData(after, before, sortby='created_utc', order = 'asc'):
     return data['data']
 
 post_table = PostTable()
+post_ids = post_table.post_ids
+timestamps = post_table.timestamps
 
 after = first_epoch
 first = True
