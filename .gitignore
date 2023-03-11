@@ -169,4 +169,4 @@ inference/streams/*
 !inference/streams/.gitkeep
 
 dataset/*.csv
-.csv
+*.csv
