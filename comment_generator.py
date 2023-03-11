@@ -106,6 +106,8 @@ def main():
     #write to csv
     with open('AI_comments.csv','a') as f:
       df_comments.to_csv(f, index=False, mode='a', header=f.tell()==0)
+    
+    df_comments.drop_duplicates().reset_index(drop=True)
   # print(df_comments)
 
   #write to csv
