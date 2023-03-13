@@ -6,18 +6,12 @@ import os
 import sys
 import queue
 
+cwd = os.getcwd()
 inference_folder = os.path.dirname(__file__)
 os.chdir(inference_folder)
 
 from play_audio import stream_valid
-from get_audio import get_videos
-
-os.chdir(os.path.join(inference_folder, 'streams'))
-
-dataset_path = '../dataset/posts_inference.csv'
-limit = 10
-
-new_snips = 1
+from get_audio import get_videos, load_model
 
 
 # https://stackoverflow.com/a/6874161
@@ -50,6 +44,21 @@ class ExThread(threading.Thread):
 
 
 async def main():
+  import argparse
+  p = argparse.ArgumentParser(description="Download audio snippets from gTTS")
+  p.add_argument("-path", help="path of the posts.csv from the dataset", default='../dataset/posts_inference.csv')
+  p.add_argument("-model", help="path of the model.pkl file", default='../models/model.pkl')
+  p.add_argument("-limit", help="the number of audio clips to download per FFMPEG session", type=int, default=10)
+  P = p.parse_args()
+
+  dataset_path = P.path
+  model_path = P.model
+  limit = P.limit
+
+  os.chdir(cwd)
+  model = load_model(model_path)
+  os.chdir(os.path.join(inference_folder, 'streams'))
+
   new_snips = 1
   while new_snips != 0:
     # Hopefully, it takes much longer to play the audio than it does to generate it.
@@ -57,7 +66,7 @@ async def main():
     t.start()
 
     with open(os.path.join('..', dataset_path), 'r') as f:
-      new_snips = await get_videos(csv.DictReader(f), limit)
+      new_snips = await get_videos(csv.DictReader(f), model, limit)
 
     t.join_with_exception()
 

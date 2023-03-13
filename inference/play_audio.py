@@ -25,6 +25,7 @@ def stream(redd_ids, *destinations):
   # This command was converted to Python from "play_audio_pylivestream.py"
   # and was modified to concatenate all of the clips together into one long
   # stream.
+  # https://github.com/adichand/AITAJudge/blob/6b8f6b/inference/play_audio_pylivestream.py
   segments = []
   for seg in redd_ids:
     duration = ffmpeg.probe(f'{seg}.mp3')['streams'][0]['duration']
@@ -40,6 +41,15 @@ def stream(redd_ids, *destinations):
     audio = ffmpeg.input(f'{seg}.mp3')
     segments.append(image)
     segments.append(audio)
+
+  # # Silence
+  # audio = ffmpeg.input(
+  #   'anullsrc=channel_layout=mono:sample_rate=24000',
+  #   format='lavfi',
+  #   t=1 # some padding after the stream so that FFMPEG doesn't close early
+  # )
+  # segments.append(image)
+  # segments.append(audio)
 
   video = ffmpeg.concat(*segments, v=1, a=1)
 
@@ -101,11 +111,14 @@ def stream_valid(condition='Removed', is_async=False):
 
     # Increment the number of times in which the post was read out loud in
     # the database
+    redd_ids2 = [(redd_id,) for redd_id in redd_ids]
     try:
       cur.executemany("""
       INSERT OR IGNORE INTO Posts VALUES (?, 0, 0);
+      """, redd_ids2)
+      cur.executemany("""
       UPDATE Posts SET Played = Played + 1 WHERE PostId LIKE ?;
-      """, (redd_ids, redd_ids))
+      """, redd_ids2)
       cur.commit()
     except:
       cur.rollback()

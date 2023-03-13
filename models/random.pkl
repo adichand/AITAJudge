@@ -1,0 +1,7 @@
+c__builtin__
+eval
+(Vlambda post, comments: choice(comments)
+(dVchoice
+crandom
+choice
+stR.

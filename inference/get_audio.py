@@ -73,6 +73,7 @@ gtts.tokenizer.symbols.SUB_PAIRS.extend((
   ('NAH', "No assholes here"),
   ('AITA', "Am I the asshole"),
   ('WIBTA', "Would I be the asshole"),
+  # ('tl;dr', "Tea El Dee Are"),
 ))
 
 async def tts(selftext, comment, redd_id):
@@ -117,17 +118,22 @@ async def tts(selftext, comment, redd_id):
   process.stdin.close()
   process.wait()
 
-  os.remove('tmp_0_{redd_id}.mp3')
+  os.remove(f'tmp_0_{redd_id}.mp3')
 
 
-async def get_videos(posts, limit=-1):
+async def get_videos(posts, model, limit=-1):
   new_snips = 0
   tts_promises = []
+
+  if limit == 0: return 0
 
   with browsers[browser_type](options=browser_options[browser_type]) as driver:
     dx, dy = driver.execute_script("var w=window; return [w.outerWidth - w.innerWidth, w.outerHeight - w.innerHeight];")
     if dx > 0 and dy > 0:
       driver.set_window_size(1280 + dx, 720 + dy)
+
+    driver.get('https://www.reddit.com/r/AmItheAsshole') # Load some cookies?
+
     try:
       cur = sqlite3.connect(played_dht)
       for post in posts:
@@ -136,7 +142,7 @@ async def get_videos(posts, limit=-1):
         redd_id = post['id']
         if cur.execute("SELECT * FROM Posts WHERE PostId == ?", (redd_id,)).fetchone(): # will be none by default
           continue
-        comment = get_comment(redd_id)
+        comment = get_comment(redd_id, post, model)
         if comment is None: continue
         im_path = f'{redd_id}.png'
         no_img = not os.path.exists(im_path)
@@ -194,21 +200,45 @@ async def get_videos(posts, limit=-1):
 
   return new_snips
 
+def load_model(model_path):
+  cwd = os.getcwd()
+  os.chdir(os.path.dirname(__file__))
+  import nnsave
+  os.chdir(cwd)
+
+  model_path = os.path.join(os.getcwd(), model_path)
+  models_folder = os.path.join(os.path.dirname(__file__), '../models')
+  with nnsave.PackageSandbox(models_folder) as sand:
+    return sand.load_pickle(os.path.relpath(model_path, models_folder))
+  # os.chdir(os.path.join(os.path.dirname(__file__), '../models'))
+  # with open(model_path, 'rb') as f:
+  #   model = pickle.load(f)
+  # os.chdir(cwd)
+  # return model
+
 # Meant to be replaced in the future probably. Just for testing for now.
-import pandas as pd, random
+import pandas as pd
 comments_df = pd.read_csv('../sorted_AI_comments.csv', index_col=0)
-def get_comment(redd_id):
-  comments = list(comments_df.loc['11hesn9'])
+def get_comment(redd_id, post, model):
+  try:
+    comments = list(comments_df.loc[redd_id])
+  except KeyError:
+    print(f'no AI comment {redd_id}')
+    return None
   # the model
-  return random.choice(comments)
+  return model(post, comments)
 
 if __name__ == '__main__':
   import argparse
   p = argparse.ArgumentParser(description="Download audio snippets from gTTS")
   p.add_argument("-path", help="path of the posts.csv from the dataset", default='../dataset/posts_inference.csv')
+  p.add_argument("-model", help="path of the model.pkl file", default='../models/model.pkl')
   p.add_argument("-limit", help="the number of audio clips to download", type=int, default=-1)
   P = p.parse_args()
 
+  model_path = os.path.join(os.path.dirname(__file__), P.model)
+  model = load_model(model_path)
+
   os.chdir(os.path.join(os.path.dirname(__file__), 'streams'))
   with open(os.path.join('..', P.path), 'r') as f:
-    asyncio.run(get_videos(csv.DictReader(f), P.limit))
+    asyncio.run(get_videos(csv.DictReader(f), model, P.limit))
