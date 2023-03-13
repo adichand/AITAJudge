@@ -9,9 +9,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import sqlite3
-from gtts import gTTS
+import gtts
 from selenium import webdriver
 import PIL.Image
+import ffmpeg
 
 browsers = {
   'chrome': webdriver.Chrome,
@@ -60,11 +61,64 @@ removed_im_path = os.path.join(inference_folder, 'removed.svg')
 removed_im = minidom.parse(removed_im_path).getElementsByTagName('path')[0].getAttribute('d')
 deleted_im_path = os.path.join(inference_folder, 'deleted.svg')
 deleted_im = minidom.parse(deleted_im_path).getElementsByTagName('path')[0].getAttribute('d')
+awaiting_im_path = os.path.join(inference_folder, 'awaiting.svg')
+awaiting_im = minidom.parse(deleted_im_path).getElementsByTagName('path')[0].getAttribute('d')
 
-async def tts(selftext, dest):
-  tts = gTTS(selftext, lang='en')
-  with open(dest, 'wb') as f:
+use_named_pipes = os.getenv('AITA_NAMED_PIPES', '') == '1'
+
+gtts.tokenizer.symbols.SUB_PAIRS.extend((
+  ('YTA', "You're the asshole"),
+  ('NTA', "Not the asshole"),
+  ('ESH', "Everyone sucks here"),
+  ('NAH', "No assholes here"),
+  ('AITA', "Am I the asshole"),
+  ('WIBTA', "Would I be the asshole"),
+))
+
+async def tts(selftext, comment, redd_id):
+  # Create a named pipe if on Unix
+  # This will make the processing faster
+  if use_named_pipes:
+    try:
+      os.mkfifo(f'tmp_0_{redd_id}.mp3')
+      os.mkfifo(f'{redd_id}.mp3')
+    except OSError as oe:
+      if oe.errno != errno.EEXIST:
+        raise
+
+  segments = []
+
+  # The actual text
+  with open(f'tmp_0_{redd_id}.mp3', 'wb') as f:
+    tts = gtts.gTTS(selftext, lang='en')
     tts.write_to_fp(f)
+
+  audio = ffmpeg.input(f'tmp_0_{redd_id}.mp3')
+  segments.append(audio)
+
+  # Silence
+  audio = ffmpeg.input(
+    'anullsrc=channel_layout=mono:sample_rate=24000',
+    format='lavfi',
+    t=1 # how long you want the silence to be in seconds
+  )
+  segments.append(audio)
+
+  # The comment
+  audio = ffmpeg.input(f'pipe:')
+  segments.append(audio)
+
+  combined = ffmpeg.concat(*segments, v=0, a=1)
+  process = combined.output(f'{redd_id}.mp3').global_args('-loglevel', 'error') \
+    .run_async(pipe_stdin=True)
+
+  tts = gtts.gTTS(comment, lang='en')
+  tts.write_to_fp(process.stdin)
+  process.stdin.close()
+  process.wait()
+
+  os.remove('tmp_0_{redd_id}.mp3')
+
 
 async def get_videos(posts, limit=-1):
   new_snips = 0
@@ -82,6 +136,8 @@ async def get_videos(posts, limit=-1):
         redd_id = post['id']
         if cur.execute("SELECT * FROM Posts WHERE PostId == ?", (redd_id,)).fetchone(): # will be none by default
           continue
+        comment = get_comment(redd_id)
+        if comment is None: continue
         im_path = f'{redd_id}.png'
         no_img = not os.path.exists(im_path)
 
@@ -91,7 +147,7 @@ async def get_videos(posts, limit=-1):
 
           # Test to see if the page was removed
           if any(
-            tag.get_attribute('d') in (removed_im, deleted_im)
+            tag.get_attribute('d') in (removed_im, deleted_im, awaiting_im)
             for tag in driver.find_elements(webdriver.common.by.By.TAG_NAME, 'path')
           ):
             cur.execute('INSERT INTO Posts VALUES (?,?,?)', (redd_id, True, 0))
@@ -103,7 +159,7 @@ async def get_videos(posts, limit=-1):
         # a little bit of time
         if not os.path.exists(f'{redd_id}.mp3'):
           print(f"tts {redd_id}")
-          tts_promises.append(tts(selftext, f'{redd_id}.mp3'))
+          tts_promises.append(tts(selftext, comment, redd_id))
           new_snips += 1
 
         # Take the screenshot if the photo isn't there
@@ -115,6 +171,13 @@ async def get_videos(posts, limit=-1):
           )
 
           png = driver.get_screenshot_as_png()
+
+          if use_named_pipes:
+            try:
+              os.mkfifo(f'{redd_id}.png')
+            except OSError as oe:
+              if oe.errno != errno.EEXIST:
+                raise
 
           # Reduce resolution so my poor MacBook Air will be happy.
           im = PIL.Image.open(io.BytesIO(png))
@@ -131,6 +194,13 @@ async def get_videos(posts, limit=-1):
 
   return new_snips
 
+# Meant to be replaced in the future probably. Just for testing for now.
+import pandas as pd, random
+comments_df = pd.read_csv('../sorted_AI_comments.csv', index_col=0)
+def get_comment(redd_id):
+  comments = list(comments_df.loc['11hesn9'])
+  # the model
+  return random.choice(comments)
 
 if __name__ == '__main__':
   import argparse

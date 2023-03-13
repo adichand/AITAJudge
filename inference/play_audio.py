@@ -6,6 +6,7 @@ import subprocess
 import time
 import sqlite3
 import shlex
+import stat
 
 
 from dotenv import load_dotenv
@@ -26,14 +27,16 @@ def stream(redd_ids, *destinations):
   # stream.
   segments = []
   for seg in redd_ids:
-    audio_probe = ffmpeg.probe(f'{seg}.mp3')['streams'][0]
+    duration = ffmpeg.probe(f'{seg}.mp3')['streams'][0]['duration']
+
     image = ffmpeg.input(
       f'{seg}.png',
       format='image2',
-      t=float(audio_probe['duration']) + 2,
+      t=float(duration) + 2,
       re=None,
       loop=1
     )
+    # The main text
     audio = ffmpeg.input(f'{seg}.mp3')
     segments.append(image)
     segments.append(audio)
@@ -71,6 +74,7 @@ def stream_valid(condition='Removed', is_async=False):
       redd_id
       for f in glob.iglob('*.mp3')
       if (redd_id := f.split('.', 1)[0]) not in remove_from
+      if not f.startswith('tmp_')
     ]
 
     # Don't do anything if there are no clips to play.
@@ -97,14 +101,24 @@ def stream_valid(condition='Removed', is_async=False):
 
     # Increment the number of times in which the post was read out loud in
     # the database
-    for redd_id in redd_ids:
-      cur.execute("""
+    try:
+      cur.executemany("""
       INSERT OR IGNORE INTO Posts VALUES (?, 0, 0);
-      """, (redd_id,))
-      cur.execute("""
       UPDATE Posts SET Played = Played + 1 WHERE PostId LIKE ?;
-      """, (redd_id,))
-    cur.commit()
+      """, (redd_ids, redd_ids))
+      cur.commit()
+    except:
+      cur.rollback()
+      raise
+
+    # Delete the temporary files if they are named pipes
+    for redd_id in redd_ids:
+      for path in [
+        f'{redd_id}.mp3',
+        f'{redd_id}.png',
+      ]:
+        if stat.S_ISFIFO(os.stat(path).st_mode):
+          os.remove(path)
 
   finally:
     cur.close()
