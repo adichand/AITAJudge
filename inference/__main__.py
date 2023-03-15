@@ -11,7 +11,7 @@ inference_folder = os.path.dirname(__file__)
 os.chdir(inference_folder)
 
 from play_audio import stream_valid
-from get_audio import get_videos, load_model
+from get_audio import get_videos, load_model, load_posts
 
 
 # https://stackoverflow.com/a/6874161
@@ -46,7 +46,7 @@ class ExThread(threading.Thread):
 async def main():
   import argparse
   p = argparse.ArgumentParser(description="Download audio snippets from gTTS")
-  p.add_argument("-path", help="path of the posts.csv from the dataset", default='../dataset/posts_inference.csv')
+  p.add_argument("-path", help="path of the posts.csv from the dataset", default=None)
   p.add_argument("-model", help="path of the model.pkl file", default='../models/model.pkl')
   p.add_argument("-limit", help="the number of audio clips to download per FFMPEG session", type=int, default=10)
   P = p.parse_args()
@@ -65,8 +65,7 @@ async def main():
     t = ExThread(target=stream_valid, args=('Removed OR Played > 0',))
     t.start()
 
-    with open(os.path.join('..', dataset_path), 'r') as f:
-      new_snips = await get_videos(csv.DictReader(f), model, limit)
+    new_snips = await get_videos(load_posts(dataset_path), model, limit)
 
     t.join_with_exception()
 

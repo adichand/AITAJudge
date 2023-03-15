@@ -41,21 +41,7 @@ inference_folder = os.path.dirname(__file__)
 
 played_dht = os.path.join(inference_folder, 'played.db')
 if not os.path.exists(played_dht):
-  # Essentially touch the file
-  cur = sqlite3.connect(played_dht)
-
-  cur.execute("""
-  CREATE TABLE Posts
-  (
-    PostId CHAR(8) NOT NULL,
-    Removed BOOL,
-    Played INT,
-    PRIMARY KEY(PostId)
-  )
-  """)
-
-  cur.commit()
-  cur.close()
+  raise Error("You need to run 'clean_csvs.py' in the dataset folder first to get the Reddit posts.")
 
 removed_im_path = os.path.join(inference_folder, 'removed.svg')
 removed_im = minidom.parse(removed_im_path).getElementsByTagName('path')[0].getAttribute('d')
@@ -140,7 +126,7 @@ async def get_videos(posts, model, limit=-1):
         selftext = post['selftext']
         url = post['url']
         redd_id = post['id']
-        if cur.execute("SELECT * FROM Posts WHERE PostId == ?", (redd_id,)).fetchone(): # will be none by default
+        if cur.execute("SELECT * FROM PostsPlayed WHERE PostId == ?", (redd_id,)).fetchone(): # will be none by default
           continue
         im_path = f'{redd_id}.png'
         no_img = not os.path.exists(im_path)
@@ -154,7 +140,7 @@ async def get_videos(posts, model, limit=-1):
             tag.get_attribute('d') in (removed_im, deleted_im, awaiting_im)
             for tag in driver.find_elements(webdriver.common.by.By.TAG_NAME, 'path')
           ):
-            cur.execute('INSERT INTO Posts VALUES (?,?,?)', (redd_id, True, 0))
+            cur.execute('INSERT INTO PostsPlayed VALUES (?,?,?)', (redd_id, True, 0))
             cur.commit()
             print(f'{redd_id} was removed')
             continue
@@ -164,7 +150,11 @@ async def get_videos(posts, model, limit=-1):
         if not os.path.exists(f'{redd_id}.mp3'):
           print(f"tts {redd_id}")
           comment = model(post)
-          if comment is None: continue
+          if comment is None:
+            cur.execute('INSERT INTO PostsPlayed VALUES (?,?,?)', (redd_id, True, 0))
+            cur.commit()
+            print(f'no AI comment {redd_id}')
+            continue
           tts_promises.append(tts(selftext, comment, redd_id))
           new_snips += 1
 
@@ -216,10 +206,39 @@ def load_model(model_path):
   # os.chdir(cwd)
   # return model
 
+def load_posts(path):
+  if path is None:
+    # SQL database
+    con = sqlite3.connect(played_dht)
+    con.row_factory = sqlite3.Row
+    cur = con.cursor()
+    try:
+      while True:
+        cur.execute("""
+        SELECT Posts.* FROM Posts
+        LEFT JOIN PostsPlayed ON PostsPlayed.PostId == Posts.id
+        WHERE PostsPlayed.PostId IS NULL
+        """)
+
+        row = cur.fetchone()
+        if row is None:
+          break
+        while row is not None:
+          yield row
+          row = cur.fetchone()
+    finally:
+      con.close()
+  else:
+    # CSV
+    if not os.path.isabs(path):
+      path = os.path.join('..', path)
+    with open(path, 'r') as f:
+      yield from csv.DictReader(f)
+
 if __name__ == '__main__':
   import argparse
   p = argparse.ArgumentParser(description="Download audio snippets from gTTS")
-  p.add_argument("-path", help="path of the posts.csv from the dataset", default='../dataset/posts_inference.csv')
+  p.add_argument("-path", help="path of the posts.csv from the dataset", default=None) # '../dataset/posts_inference.csv'
   p.add_argument("-model", help="path of the model.pkl file", default='../models/model.pkl')
   p.add_argument("-limit", help="the number of audio clips to download", type=int, default=-1)
   P = p.parse_args()
@@ -228,5 +247,4 @@ if __name__ == '__main__':
   model = load_model(model_path)
 
   os.chdir(os.path.join(os.path.dirname(__file__), 'streams'))
-  with open(os.path.join('..', P.path), 'r') as f:
-    asyncio.run(get_videos(csv.DictReader(f), model, P.limit))
+  asyncio.run(get_videos(load_posts(P.path), model, P.limit))

@@ -2,6 +2,7 @@
 # Do some cleaning to get the data in good order for a classification problem
 
 import pandas as pd
+import sqlite3
 import os
 
 dataset_folder = os.path.dirname(__file__)
@@ -24,6 +25,28 @@ if os.path.exists("posts.csv"):
     print("There are now " +  str(len(grand)) + " cleaned inference posts.")
 
     grand.to_csv("posts_inference.csv",index=False)
+
+    print("Saving 'posts_inference.csv' into ../inference/played.db")
+
+    cur = sqlite3.connect('../inference/played.db')
+
+    grand = grand.set_index('id')
+    grand.to_sql('Posts', con=cur, if_exists='replace', index_label='id', dtype={'id': 'CHAR(8) NOT NULL PRIMARY KEY'})
+
+    # PostsPlayed table needed for get_data.py
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS PostsPlayed
+    (
+      PostId CHAR(8) NOT NULL,
+      Removed BOOL,
+      Played INT,
+      PRIMARY KEY(PostId)
+    )
+    """)
+
+    cur.commit()
+    cur.close()
+
 else:
     print("No inference posts available. Run `python download_inference_posts.py` if you want them.")
 

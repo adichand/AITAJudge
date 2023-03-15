@@ -78,7 +78,7 @@ def stream_valid(condition='Removed', is_async=False):
     cur = sqlite3.connect(played_dht)
 
     # Get the posts that are not removed
-    removed_posts = cur.execute('SELECT PostId FROM Posts WHERE ' + condition)
+    removed_posts = cur.execute('SELECT PostId FROM PostsPlayed WHERE ' + condition)
     remove_from = {post_id for post_id, in removed_posts.fetchall()}
     redd_ids = [
       redd_id
@@ -114,10 +114,10 @@ def stream_valid(condition='Removed', is_async=False):
     redd_ids2 = [(redd_id,) for redd_id in redd_ids]
     try:
       cur.executemany("""
-      INSERT OR IGNORE INTO Posts VALUES (?, 0, 0);
+      INSERT OR IGNORE INTO PostsPlayed VALUES (?, 0, 0);
       """, redd_ids2)
       cur.executemany("""
-      UPDATE Posts SET Played = Played + 1 WHERE PostId LIKE ?;
+      UPDATE PostsPlayed SET Played = Played + 1 WHERE PostId LIKE ?;
       """, redd_ids2)
       cur.commit()
     except:
