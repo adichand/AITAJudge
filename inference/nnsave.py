@@ -548,7 +548,8 @@ class PackageSandbox(PackageScope):
       @classmethod
       def find_spec(cls, fullname, path, target=None):
         nonlocal _sandbox
-        _sandbox.add(fullname)
+        if fullname in self._package_names:
+          _sandbox.add(fullname)
         # print(cls, fullname, path, target, _sandbox)
 
     self._PackageSandboxMetaFinder = _PackageSandboxMetaFinder
@@ -667,10 +668,10 @@ if __name__ == '__main__':
     #     f.write(raw)
     #   f.flush()
     #   os.fsync(f)
-    
+
     # for buffer in buffers:
       # print(buffer.raw().nbytes)
-    
+
     with open('model.dat', 'rb') as f:
       num_bufs = int.from_bytes(f.read(8), 'big')
       num_bytes = [int.from_bytes(f.read(8), 'big') for _ in range(num_bufs)]

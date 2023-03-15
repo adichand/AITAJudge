@@ -142,8 +142,6 @@ async def get_videos(posts, model, limit=-1):
         redd_id = post['id']
         if cur.execute("SELECT * FROM Posts WHERE PostId == ?", (redd_id,)).fetchone(): # will be none by default
           continue
-        comment = get_comment(redd_id, post, model)
-        if comment is None: continue
         im_path = f'{redd_id}.png'
         no_img = not os.path.exists(im_path)
 
@@ -165,6 +163,8 @@ async def get_videos(posts, model, limit=-1):
         # a little bit of time
         if not os.path.exists(f'{redd_id}.mp3'):
           print(f"tts {redd_id}")
+          comment = model(post)
+          if comment is None: continue
           tts_promises.append(tts(selftext, comment, redd_id))
           new_snips += 1
 
@@ -215,18 +215,6 @@ def load_model(model_path):
   #   model = pickle.load(f)
   # os.chdir(cwd)
   # return model
-
-# Meant to be replaced in the future probably. Just for testing for now.
-import pandas as pd
-comments_df = pd.read_csv('../sorted_AI_comments.csv', index_col=0)
-def get_comment(redd_id, post, model):
-  try:
-    comments = list(comments_df.loc[redd_id])
-  except KeyError:
-    print(f'no AI comment {redd_id}')
-    return None
-  # the model
-  return model(post, comments)
 
 if __name__ == '__main__':
   import argparse

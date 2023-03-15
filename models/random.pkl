@@ -1,7 +1,13 @@
-c__builtin__
+cwrappers
+PolicyCommenter
+p0
+(c__builtin__
 eval
-(Vlambda post, comments: choice(comments)
+(Vlambda post, comments: choice(range(len(comments)))
 (dVchoice
 crandom
 choice
-stR.
+stRp1
+tp2
+Rp3
+.
