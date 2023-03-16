@@ -2,9 +2,10 @@ openai
 python-dotenv
 praw
 requests
-playwright
 pandas
-git+https://github.com/anivegesana/PyLivestream
-pyrtmp
 gTTS
-diskhash==0.4.2
+tqdm
+scikit-learn
+selenium
+ffmpeg-python
+Pillow

@@ -1,111 +1,141 @@
 #!/usr/bin/env python3
-# copied from https://github.com/scivision/PyLivestream/blob/main/src/pylivestream/glob.py
-from __future__ import annotations
-import random
-from pathlib import Path
-import signal
-import argparse
+import ffmpeg
 import os
-
-from pylivestream.base import FileIn
-from pylivestream.glob import fileglob
-from pylivestream.ffmpeg import get_meta
-
-
-def stream_files(
-    ini_file: Path,
-    websites: list[str],
-    *,
-    video_path: Path,
-    glob: str = None,
-    assume_yes: bool = False,
-    loop: bool = None,
-    shuffle: bool = None,
-    image_suffix: str = None,
-):
-    # %% file / glob wranging
-    flist = fileglob(video_path, glob)
-
-    print("streaming these files. Be sure list is correct! \n")
-    print("\n".join(map(str, flist)))
-    print()
-
-    if assume_yes:
-        print("going live on", websites)
-    else:
-        input(f"Press Enter to go live on {websites}.    Or Ctrl C to abort.")
-
-    if loop:
-        while True:
-            playonce(flist, image_suffix, websites, ini_file, shuffle, assume_yes)
-    else:
-        playonce(flist, image_suffix, websites, ini_file, shuffle, assume_yes)
+import glob
+import subprocess
+import time
+import sqlite3
+import shlex
+import stat
 
 
-def playonce(
-    flist: list[Path],
-    image_suffix: str,
-    sites: list[str],
-    inifn: Path,
-    shuffle: bool,
-    yes: bool,
-):
-
-    if shuffle:
-        random.shuffle(flist)
-
-    image: Path
-
-    if image_suffix == '':
-        image_suffix = None
-
-    for f in flist:
-        # TODO: pad audio files so that ffmpeg doesn't cut off that last two seconds?
-        # meta: dict = get_meta(f)
-        # timeout: float = float(meta['streams'][0]['duration']) + 2
-
-        if image_suffix:
-            image = f.with_suffix(image_suffix)
-        else:
-            image = None
-
-        s = FileIn(
-            inifn, sites, infn=f, loop=False, image=image, caption=None, yes=yes, timeout=None
-        )
-
-        s.golive()
+from dotenv import load_dotenv
+load_dotenv()
 
 
-def cli():
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
+inference_folder = os.path.dirname(__file__)
 
-    p = argparse.ArgumentParser(description="Livestream a globbed input file list")
-    p.add_argument(
-        "websites",
-        help="site to stream, e.g. localhost youtube facebook twitch",
-        nargs="+",
+played_dht = os.path.join(inference_folder, 'played.db')
+
+stream_url = os.getenv('AITA_STREAM_URL', None)
+stream_urls = ('rtmp://localhost',) if stream_url is None else shlex.split(stream_url)
+stream_format = os.getenv('AITA_STREAM_FORMAT', 'flv')
+
+def stream(redd_ids, *destinations):
+  # This command was converted to Python from "play_audio_pylivestream.py"
+  # and was modified to concatenate all of the clips together into one long
+  # stream.
+  # https://github.com/adichand/AITAJudge/blob/6b8f6b/inference/play_audio_pylivestream.py
+  segments = []
+  for seg in redd_ids:
+    duration = ffmpeg.probe(f'{seg}.mp3')['streams'][0]['duration']
+
+    image = ffmpeg.input(
+      f'{seg}.png',
+      format='image2',
+      t=float(duration) + 2,
+      re=None,
+      loop=1
     )
-    p.add_argument("-path", help="path to discover files from", default='')
-    p.add_argument("-json", help="JSON file with stream parameters such as key", default='../pylivestream.json')
-    p.add_argument("-glob", help="file glob pattern to stream.", default='*.mp3')
-    p.add_argument("-image-suffix", help="suffix of static image to display, for audio-only files.", default='.png')
-    p.add_argument("-shuffle", help="shuffle the globbed file list", action="store_true")
-    p.add_argument("-loop", help="repeat the globbed file list endlessly", action="store_true")
-    p.add_argument("-y", "--yes", help="no confirmation dialog", action="store_true")
-    P = p.parse_args()
+    # The main text
+    audio = ffmpeg.input(f'{seg}.mp3')
+    segments.append(image)
+    segments.append(audio)
 
-    stream_files(
-        ini_file=P.json,
-        websites=P.websites,
-        assume_yes=P.yes,
-        loop=P.loop,
-        video_path=P.path,
-        glob=P.glob,
-        shuffle=P.shuffle,
-        image_suffix=P.image_suffix,
-    )
+  # # Silence
+  # audio = ffmpeg.input(
+  #   'anullsrc=channel_layout=mono:sample_rate=24000',
+  #   format='lavfi',
+  #   t=1 # some padding after the stream so that FFMPEG doesn't close early
+  # )
+  # segments.append(image)
+  # segments.append(audio)
 
+  video = ffmpeg.concat(*segments, v=1, a=1)
 
-if __name__ == "__main__":
-    os.chdir(os.path.join(os.path.dirname(__file__), 'streams'))
-    cli()
+  out = video.output(
+    *destinations,
+    vcodec='libx264',
+    pix_fmt='uyvy422',
+    preset='veryfast',
+    video_bitrate='2500k',
+    r=30.0, # 3.0
+    g=60.0,
+    acodec='aac',
+    audio_bitrate=128000,
+    ar=44100,
+    maxrate='2500k',
+    bufsize='1250k',
+    shortest=None,
+    strict='experimental',
+    format=stream_format
+  ).global_args('-loglevel', 'error')
+
+  return out
+
+def stream_valid(condition='Removed', is_async=False):
+  try:
+    cur = sqlite3.connect(played_dht)
+
+    # Get the posts that are not removed
+    removed_posts = cur.execute('SELECT PostId FROM PostsPlayed WHERE ' + condition)
+    remove_from = {post_id for post_id, in removed_posts.fetchall()}
+    redd_ids = [
+      redd_id
+      for f in glob.iglob('*.mp3')
+      if (redd_id := f.split('.', 1)[0]) not in remove_from
+      if not f.startswith('tmp_')
+    ]
+
+    # Don't do anything if there are no clips to play.
+    if len(redd_ids) == 0:
+      return
+
+    if stream_url is None:
+      # Start a RTMP server on localhost for us to stream to
+      subprocess.Popen([
+        'ffplay',
+        '-loglevel', 'error',
+        '-timeout', '5',
+        '-autoexit',
+        'rtmp://localhost'
+      ])
+      time.sleep(1)
+
+    # Stream to the URLs specified
+    s = stream(redd_ids, *stream_urls)
+    if is_async:
+      s.run_async()
+    else:
+      s.run()
+
+    # Increment the number of times in which the post was read out loud in
+    # the database
+    redd_ids2 = [(redd_id,) for redd_id in redd_ids]
+    try:
+      cur.executemany("""
+      INSERT OR IGNORE INTO PostsPlayed VALUES (?, 0, 0);
+      """, redd_ids2)
+      cur.executemany("""
+      UPDATE PostsPlayed SET Played = Played + 1 WHERE PostId LIKE ?;
+      """, redd_ids2)
+      cur.commit()
+    except:
+      cur.rollback()
+      raise
+
+    # Delete the temporary files if they are named pipes
+    for redd_id in redd_ids:
+      for path in [
+        f'{redd_id}.mp3',
+        f'{redd_id}.png',
+      ]:
+        if stat.S_ISFIFO(os.stat(path).st_mode):
+          os.remove(path)
+
+  finally:
+    cur.close()
+
+if __name__ == '__main__':
+  os.chdir(os.path.join(inference_folder, 'streams'))
+  stream_valid()

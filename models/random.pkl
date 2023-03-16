@@ -1,0 +1,9 @@
+cwrappers
+PolicyCommenter
+(c__builtin__
+eval
+(Vlambda post, comments: choice(range(len(comments)))
+(dVchoice
+crandom
+choice
+stRtR.

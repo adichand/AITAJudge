@@ -168,4 +168,5 @@ inference/played.db
 inference/streams/*
 !inference/streams/.gitkeep
 
-dataset/posts.csv
+dataset/*.csv
+*.csv
