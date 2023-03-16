@@ -6,7 +6,7 @@ import numpy as np
 import gensim.downloader as api
 from gensim.models import KeyedVectors
 
-LOCAL_MODEL_PATH = "../gensim_embeddings"
+LOCAL_MODEL_PATH = os.getenv("AITA_GENSIM_MODEL_PATH", "")
 
 GENSIM_WORD_EMBEDDINGS_PATH = "word2vec-google-news-300"
 MODEL_FILENAME = GENSIM_WORD_EMBEDDINGS_PATH
@@ -24,6 +24,11 @@ def main():
 
 
 def get_model(filename, default_gensim_path=GENSIM_WORD_EMBEDDINGS_PATH):
+    if not LOCAL_MODEL_PATH:
+        # If you are not caching gensim in some other folder via pip,
+        # just load the model
+        return api.load(default_gensim_path)
+
     filepath = os.path.join(LOCAL_MODEL_PATH, filename)
     print(filepath)
 
@@ -43,7 +48,7 @@ def get_model(filename, default_gensim_path=GENSIM_WORD_EMBEDDINGS_PATH):
 def get_sentence_embedding(w2v_model, comment_text, aggregation="sum"):
     # print('getting individual token embeddings')
     words = comment_text.split()
-    word_vecs = [w2v_model[word] for word in words if word in w2v_model.vocab]
+    word_vecs = [w2v_model[word] for word in words if word in w2v_model.key_to_index]
 
     # check length
     for word_vec in word_vecs:

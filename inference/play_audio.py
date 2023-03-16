@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-inference_folder = os.path.dirname(__file__)
+inference_folder = os.path.dirname(os.path.abspath(__file__))
 
 played_dht = os.path.join(inference_folder, 'played.db')
 
@@ -96,7 +96,7 @@ def stream_valid(condition='Removed', is_async=False):
       subprocess.Popen([
         'ffplay',
         '-loglevel', 'error',
-        '-timeout', '5',
+        '-timeout', '30',
         '-autoexit',
         'rtmp://localhost'
       ])

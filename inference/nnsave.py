@@ -23,7 +23,6 @@ import collections
 import configparser
 import contextlib
 import copyreg
-import ensurepip
 import gzip
 import io
 import importlib.abc
@@ -513,6 +512,7 @@ class PackageScope(contextlib.AbstractContextManager):
       try:
         import pip
       except:
+        import ensurepip
         ensurepip.bootstrap()
       with tempfile.NamedTemporaryFile() as f:
         f.writelines(reqs)
