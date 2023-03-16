@@ -38,11 +38,11 @@ chrome.add_argument("--disable-backgrounding-occluded-windows")
 browser_type = os.getenv('AITA_BROWSER', 'chrome')
 assert browser_type in ('chrome',)
 
-inference_folder = os.path.dirname(__file__)
+inference_folder = os.path.dirname(os.path.abspath(__file__))
 
 played_dht = os.path.join(inference_folder, 'played.db')
 if not os.path.exists(played_dht):
-  raise Error("You need to run 'clean_csvs.py' in the dataset folder first to get the Reddit posts.")
+  raise Exception("You need to run 'clean_csvs.py' in the dataset folder first to get the Reddit posts.")
 
 removed_im_path = os.path.join(inference_folder, 'removed.svg')
 removed_im = minidom.parse(removed_im_path).getElementsByTagName('path')[0].getAttribute('d')
@@ -197,7 +197,12 @@ def load_model(model_path):
   model_path = os.path.join(os.getcwd(), model_path)
   models_folder = os.path.join(os.path.dirname(__file__), '..')
   with nnsave.PackageSandbox(models_folder) as sand:
-    return sand.load_pickle(os.path.relpath(model_path, models_folder))
+    model = sand.load_pickle(os.path.relpath(model_path, models_folder))
+    from models.wrappers import Commenter, _fallback
+    if not isinstance(model, Commenter):
+      print("Model not Commenter. Rewrapping.")
+      model = _fallback(model)
+    return model
   # os.chdir(os.path.join(os.path.dirname(__file__), '../models'))
   # with open(model_path, 'rb') as f:
   #   model = pickle.load(f)

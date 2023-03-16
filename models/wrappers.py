@@ -88,5 +88,22 @@ class GreedyContextlessPolicy:
   def __call__(self, post, comments):
     return self.reward_model.predict(comments).argmax()
 
-def from_reward(reward_model: 'sklearn.base.BaseEstimator') -> PolicyCommenter:
+def _fallback(model: 'sklearn.base.BaseEstimator') -> PolicyCommenter:
+  """
+  This is the format used in the sklearn_models folder.
+  """
+  from sklearn.pipeline import make_pipeline
+  from sklearn.preprocessing import FunctionTransformer
+  from models.sklearn_models.embed_sentences import MODEL_FILENAME, \
+    get_model, get_sentence_embedding
+  import numpy as np
+
+  w2v_model = get_model(MODEL_FILENAME)
+  embedder = FunctionTransformer(
+    lambda x: np.stack([
+      get_sentence_embedding(w2v_model, y, aggregation="sum")
+      for y in x
+    ], 0)
+  )
+  reward_model = make_pipeline(embedder, model)
   return PolicyCommenter(GreedyContextlessPolicy(reward_model))

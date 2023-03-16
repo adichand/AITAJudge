@@ -5,7 +5,7 @@ import pandas as pd
 import sqlite3
 import os
 
-dataset_folder = os.path.dirname(__file__)
+dataset_folder = os.path.dirname(os.path.abspath(__file__))
 os.chdir(dataset_folder)
 
 def clean_scrape(df_use, body='selftext'):

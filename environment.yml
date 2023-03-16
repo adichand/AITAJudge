@@ -17,6 +17,7 @@ dependencies:
   - scikit-learn
   - ffmpeg-python
   - Pillow
+  - gensim
 
   # conda version of selenium doesn't automatically download chrome drivers
   # for some reason. at least on my machine. revert to pip version I guess.
