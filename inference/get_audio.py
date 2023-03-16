@@ -17,9 +17,11 @@ import ffmpeg
 
 browsers = {
   'chrome': webdriver.Chrome,
+  'firefox': webdriver.Firefox,
 }
 browser_options = {
   'chrome': webdriver.chrome.options.Options(),
+  'firefox': webdriver.FirefoxOptions(),
 }
 chrome = browser_options['chrome']
 chrome.add_argument("--headless")
@@ -33,10 +35,14 @@ chrome.add_argument("--disable-component-update")
 chrome.add_argument("--disable-back-forward-cache")
 chrome.add_argument("--disable-backgrounding-occluded-windows")
 
+firefox = browser_options['firefox']
+firefox.add_argument("--headless")
+firefox.add_argument("--width=1280")
+firefox.add_argument("--height=720")
 
 
 browser_type = os.getenv('AITA_BROWSER', 'chrome')
-assert browser_type in ('chrome',)
+assert browser_type in ('chrome', 'firefox')
 
 inference_folder = os.path.dirname(os.path.abspath(__file__))
 
@@ -231,7 +237,7 @@ if __name__ == '__main__':
   import argparse
   p = argparse.ArgumentParser(description="Download audio snippets from gTTS")
   p.add_argument("-path", help="path of the posts.csv from the dataset", default=None) # '../dataset/posts_inference.csv'
-  p.add_argument("-model", help="path of the model.pkl file", default='../models/model.pkl')
+  p.add_argument("-model", help="path of the model.pkl file", default='../models/sklearn_models/saved_models/nn_regressor_nrows=20000_generic.pkl')
   p.add_argument("-limit", help="the number of audio clips to download", type=int, default=-1)
   P = p.parse_args()
 
