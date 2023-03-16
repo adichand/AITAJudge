@@ -1,6 +1,8 @@
 # Inspiration taken from https://www.kaggle.com/code/sunruslan/ai-group-jetbrains-internship
 
 # Library imports
+import os
+
 import pandas as pd
 
 from sklearn.model_selection import train_test_split
@@ -12,7 +14,9 @@ from models.sklearn_models.embed_sentences import get_sentence_embedding
 
 SEED = 42
 BATCH_SIZE = 32
-NROWS = 1000
+NROWS = 20000
+
+SUFFIX = f"_nrows={NROWS}_generic"
 
 # Word Embeddings Path
 LOCAL_MODEL_PATH = "../gensim_embeddings"
@@ -30,13 +34,17 @@ FILENAMES = [POSITIVE_COMMENTS_CSV, NEGATIVE_COMMENTS_CSV]
 COLUMNS = ["text", "parent_text", "score", "parent_score"]
 
 # Where to store models
-LINEAR_REGRESSION_FILENAME = "linear_regression.pkl"
-SVR_FILENAME = "support_vector_regressor.pkl"
-MLP_FILENAME = "nn_regressor.pkl"
+SAVED_MODELS_FILEPATH = "saved_models"
+LINEAR_REGRESSION_FILENAME = f"linear_regression{SUFFIX}.pkl"
+SVR_FILENAME = f"support_vector_regressor{SUFFIX}.pkl"
+MLP_FILENAME = f"nn_regressor{SUFFIX}.pkl"
+
 
 def main():
-    X, y = read_data(FILENAMES)
+    X, y = read_data(FILENAMES, transform_y=True)
     X_train, X_test, y_train, y_test = safe_train_test_split(X, y)
+
+    print(y.describe())
 
     # Get embedding vectors
     w2v_model = get_model(MODEL_FILENAME)
@@ -47,28 +55,39 @@ def main():
     unpack_lambda = (lambda x: pd.Series(x))
 
     X_train_arr = X_train['embeds'].apply(unpack_lambda)
-    # print(len(X_train_arr.columns))
-
-    # print(X_train_arr.describe())
+    X_test_arr = X_test['embeds'].apply(unpack_lambda)
     X_train_arr = X_train_arr.fillna(0)
-    # print(X_train_arr.describe())
-    # print(X_train['embeds'].describe())
-
-    vector_size = w2v_model.vector_size
-    train_size = len(X_train)
-    test_size = len(X_test)
+    X_test_arr = X_test_arr.fillna(0)
 
     # Linear Regression
+    print("training linear regressor...")
     linear_regression = models_utils.train_model(X_train_arr, y_train, model_type="linear_regression")
-    models_utils.save_model(linear_regression, LINEAR_REGRESSION_FILENAME, should_pickle=True)
+    LR_PATH = os.path.join(SAVED_MODELS_FILEPATH, LINEAR_REGRESSION_FILENAME)
+    models_utils.save_model(linear_regression, LR_PATH, should_pickle=True)
 
-    # Support Vector Regressor
+    print('evaluating linear regressor...')
+    score = models_utils.test_model(linear_regression, X_test_arr, y_test)
+    print('score: ', score)
+
+    # Support Vector Regression
+    print("training support vector regressor...")
     support_vector_regression = models_utils.train_model(X_train_arr, y_train, model_type="support_vector_regression")
-    models_utils.save_model(support_vector_regression, SVR_FILENAME)
+    SVR_PATH = os.path.join(SAVED_MODELS_FILEPATH, SVR_FILENAME)
+    models_utils.save_model(support_vector_regression, SVR_PATH, should_pickle=True)
+
+    print("evaluating support vector regressor...")
+    score = models_utils.test_model(support_vector_regression, X_test_arr, y_test)
+    print('score: ', score)
 
     # Neural Network
+    print("training neural network...")
     mlp_regression = models_utils.train_model(X_train_arr, y_train, model_type="mlp_regression")
-    models_utils.save_model(mlp_regression, MLP_FILENAME)
+    MLP_PATH = os.path.join(SAVED_MODELS_FILEPATH, MLP_FILENAME)
+    models_utils.save_model(mlp_regression, MLP_PATH, should_pickle=True)
+
+    print("evaluating neural network...")
+    score = models_utils.test_model(mlp_regression, X_test_arr, y_test)
+    print('score: ', score)
 
 
 def read_data(filenames, filter_scores=True, transform_y=False):
@@ -94,11 +113,11 @@ def read_data(filenames, filter_scores=True, transform_y=False):
 def transform_score(comment_scores, parent_scores):
     # todo: implement score transformation
     assert len(comment_scores) == len(parent_scores)
-    for i, comment_score, parent_score in enumerate(zip(comment_scores, parent_scores)):
+    for i, (comment_score, parent_score) in enumerate(zip(comment_scores, parent_scores)):
         if parent_score == 0:
-            comment_score[i] = 0
+            comment_scores[i] = 0
         else:
-            comment_score[i] = comment_score[i] / parent_score[i]
+            comment_scores[i] = comment_scores[i] / parent_scores[i]
     return comment_scores
 
 

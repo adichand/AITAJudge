@@ -39,6 +39,7 @@ def train_model(X_train, y_train, model_type="mlp_regression"):
 
 
 def test_model(pipeline, X_test, y_test, scoring_method="default_regressor"):
+    test_score = 0
     if scoring_method == "default_regressor":
         test_score = pipeline.score(X_test, y_test)
 
