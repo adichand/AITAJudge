@@ -40,7 +40,7 @@ def get_model(filename, default_gensim_path=GENSIM_WORD_EMBEDDINGS_PATH):
     return w2v_model
 
 
-def get_sentence_embedding(w2v_model, comment_text, aggregation="sum"):
+def get_sentence_embedding(w2v_model, comment_text, aggregation="avg"):
     # print('getting individual token embeddings')
     words = comment_text.split()
     word_vecs = [w2v_model[word] for word in words if word in w2v_model.vocab]
@@ -49,11 +49,10 @@ def get_sentence_embedding(w2v_model, comment_text, aggregation="sum"):
     for word_vec in word_vecs:
         assert len(word_vec) == 300
 
-
     # print('getting sentence embedding')
     word_vec_aggregation = None
-    if aggregation == "sum":
-        word_vec_aggregation = sum(word_vecs)
+    if aggregation == "avg":
+        word_vec_aggregation = sum(word_vecs) / len(word_vecs)
 
     return word_vec_aggregation
 

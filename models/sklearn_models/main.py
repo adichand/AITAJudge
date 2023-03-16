@@ -48,7 +48,7 @@ def main():
 
     # Get embedding vectors
     w2v_model = get_model(MODEL_FILENAME)
-    get_embed = lambda x: get_sentence_embedding(w2v_model, x, aggregation="sum")
+    get_embed = lambda x: get_sentence_embedding(w2v_model, x, aggregation="avg")
     X_train['embeds'] = X_train['text'].apply(get_embed)
     X_test['embeds'] = X_test['text'].apply(get_embed)
 
