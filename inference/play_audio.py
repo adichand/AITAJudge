@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import ffmpeg
+from contextlib import closing
 import os
 import glob
 import subprocess
@@ -74,12 +75,11 @@ def stream(redd_ids, *destinations):
   return out
 
 def stream_valid(condition='Removed', is_async=False):
-  try:
-    cur = sqlite3.connect(played_dht)
-
+  with closing(sqlite3.connect(played_dht)) as con:
     # Get the posts that are not removed
-    removed_posts = cur.execute('SELECT PostId FROM PostsPlayed WHERE ' + condition)
-    remove_from = {post_id for post_id, in removed_posts.fetchall()}
+    with closing(con.cursor()) as cur:
+      cur.execute('SELECT PostId FROM PostsPlayed WHERE ' + condition)
+      remove_from = {post_id for post_id, in cur.fetchall()}
     redd_ids = [
       redd_id
       for f in glob.iglob('*.mp3')
@@ -112,17 +112,14 @@ def stream_valid(condition='Removed', is_async=False):
     # Increment the number of times in which the post was read out loud in
     # the database
     redd_ids2 = [(redd_id,) for redd_id in redd_ids]
-    try:
+    with closing(con.cursor()) as cur:
       cur.executemany("""
       INSERT OR IGNORE INTO PostsPlayed VALUES (?, 0, 0);
       """, redd_ids2)
       cur.executemany("""
       UPDATE PostsPlayed SET Played = Played + 1 WHERE PostId LIKE ?;
       """, redd_ids2)
-      cur.commit()
-    except:
-      cur.rollback()
-      raise
+    con.commit()
 
     # Delete the temporary files if they are named pipes
     for redd_id in redd_ids:
@@ -132,9 +129,6 @@ def stream_valid(condition='Removed', is_async=False):
       ]:
         if stat.S_ISFIFO(os.stat(path).st_mode):
           os.remove(path)
-
-  finally:
-    cur.close()
 
 if __name__ == '__main__':
   os.chdir(os.path.join(inference_folder, 'streams'))

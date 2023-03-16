@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import asyncio
+from contextlib import closing
 import csv
 import os
 import io
@@ -113,77 +114,74 @@ async def get_videos(posts, model, limit=-1):
 
   if limit == 0: return 0
 
-  with browsers[browser_type](options=browser_options[browser_type]) as driver:
+  with browsers[browser_type](options=browser_options[browser_type]) as driver, \
+      closing(sqlite3.connect(played_dht)) as con:
     dx, dy = driver.execute_script("var w=window; return [w.outerWidth - w.innerWidth, w.outerHeight - w.innerHeight];")
     if dx > 0 and dy > 0:
       driver.set_window_size(1280 + dx, 720 + dy)
 
     driver.get('https://www.reddit.com/r/AmItheAsshole') # Load some cookies?
 
-    try:
-      cur = sqlite3.connect(played_dht)
-      for post in posts:
-        selftext = post['selftext']
-        url = post['url']
-        redd_id = post['id']
-        if cur.execute("SELECT * FROM PostsPlayed WHERE PostId == ?", (redd_id,)).fetchone(): # will be none by default
+    for post in posts:
+      selftext = post['selftext']
+      url = post['url']
+      redd_id = post['id']
+      if con.execute("SELECT * FROM PostsPlayed WHERE PostId == ?", (redd_id,)).fetchone(): # will be none by default
+        continue
+      im_path = f'{redd_id}.png'
+      no_img = not os.path.exists(im_path)
+
+      if no_img:
+        print(f"capture {redd_id}")
+        driver.get(url)
+
+        # Test to see if the page was removed
+        if any(
+          tag.get_attribute('d') in (removed_im, deleted_im, awaiting_im)
+          for tag in driver.find_elements(webdriver.common.by.By.TAG_NAME, 'path')
+        ):
+          con.execute('INSERT INTO PostsPlayed VALUES (?,?,?)', (redd_id, True, 0))
+          con.commit()
+          print(f'{redd_id} was removed')
           continue
-        im_path = f'{redd_id}.png'
-        no_img = not os.path.exists(im_path)
 
-        if no_img:
-          print(f"capture {redd_id}")
-          driver.get(url)
+      # Start downloading the mp3 before the screenshot is taken to save
+      # a little bit of time
+      if not os.path.exists(f'{redd_id}.mp3'):
+        print(f"tts {redd_id}")
+        comment = model(post)
+        if comment is None:
+          con.execute('INSERT INTO PostsPlayed VALUES (?,?,?)', (redd_id, True, 0))
+          con.commit()
+          print(f'no AI comment {redd_id}')
+          continue
+        tts_promises.append(tts(selftext, comment, redd_id))
+        new_snips += 1
 
-          # Test to see if the page was removed
-          if any(
-            tag.get_attribute('d') in (removed_im, deleted_im, awaiting_im)
-            for tag in driver.find_elements(webdriver.common.by.By.TAG_NAME, 'path')
-          ):
-            cur.execute('INSERT INTO PostsPlayed VALUES (?,?,?)', (redd_id, True, 0))
-            cur.commit()
-            print(f'{redd_id} was removed')
-            continue
+      # Take the screenshot if the photo isn't there
+      if no_img:
+        (
+          webdriver.ActionChains(driver)
+            .scroll_by_amount(0, 224)
+            .perform()
+        )
 
-        # Start downloading the mp3 before the screenshot is taken to save
-        # a little bit of time
-        if not os.path.exists(f'{redd_id}.mp3'):
-          print(f"tts {redd_id}")
-          comment = model(post)
-          if comment is None:
-            cur.execute('INSERT INTO PostsPlayed VALUES (?,?,?)', (redd_id, True, 0))
-            cur.commit()
-            print(f'no AI comment {redd_id}')
-            continue
-          tts_promises.append(tts(selftext, comment, redd_id))
-          new_snips += 1
+        png = driver.get_screenshot_as_png()
 
-        # Take the screenshot if the photo isn't there
-        if no_img:
-          (
-            webdriver.ActionChains(driver)
-              .scroll_by_amount(0, 224)
-              .perform()
-          )
+        if use_named_pipes:
+          try:
+            os.mkfifo(f'{redd_id}.png')
+          except OSError as oe:
+            if oe.errno != errno.EEXIST:
+              raise
 
-          png = driver.get_screenshot_as_png()
+        # Reduce resolution so my poor MacBook Air will be happy.
+        im = PIL.Image.open(io.BytesIO(png))
+        im = im.resize((1280, 720))
+        im.save(im_path)
 
-          if use_named_pipes:
-            try:
-              os.mkfifo(f'{redd_id}.png')
-            except OSError as oe:
-              if oe.errno != errno.EEXIST:
-                raise
-
-          # Reduce resolution so my poor MacBook Air will be happy.
-          im = PIL.Image.open(io.BytesIO(png))
-          im = im.resize((1280, 720))
-          im.save(im_path)
-
-        if new_snips == limit:
-          break
-    finally:
-      cur.close()
+      if new_snips == limit:
+        break
 
   for promise in tts_promises:
     await promise
@@ -197,7 +195,7 @@ def load_model(model_path):
   os.chdir(cwd)
 
   model_path = os.path.join(os.getcwd(), model_path)
-  models_folder = os.path.join(os.path.dirname(__file__), '../models')
+  models_folder = os.path.join(os.path.dirname(__file__), '..')
   with nnsave.PackageSandbox(models_folder) as sand:
     return sand.load_pickle(os.path.relpath(model_path, models_folder))
   # os.chdir(os.path.join(os.path.dirname(__file__), '../models'))
@@ -209,25 +207,14 @@ def load_model(model_path):
 def load_posts(path):
   if path is None:
     # SQL database
-    con = sqlite3.connect(played_dht)
-    con.row_factory = sqlite3.Row
-    cur = con.cursor()
-    try:
+    with closing(sqlite3.connect(played_dht)) as con:
+      con.row_factory = sqlite3.Row
       while True:
-        cur.execute("""
+        yield from con.execute("""
         SELECT Posts.* FROM Posts
         LEFT JOIN PostsPlayed ON PostsPlayed.PostId == Posts.id
         WHERE PostsPlayed.PostId IS NULL
-        """)
-
-        row = cur.fetchone()
-        if row is None:
-          break
-        while row is not None:
-          yield row
-          row = cur.fetchone()
-    finally:
-      con.close()
+        """).fetchall()
   else:
     # CSV
     if not os.path.isabs(path):

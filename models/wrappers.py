@@ -50,7 +50,7 @@ class OpenAICommenter(Commenter):
     # TODO: use prompt_type_fixed
     return generate_comments(post['title'], post['selftext'])[0]
 
-Policy = Callable[int, Tuple[dict, List[str]]]
+Policy = Callable[[dict, List[str]], int]
 
 class PolicyCommenter(Commenter):
   """
@@ -77,3 +77,16 @@ class PolicyCommenter(Commenter):
         return None
 
     return comments[self.policy(post, comments)]
+
+class GreedyContextlessPolicy:
+  """
+  A policy that uses an estimate of the reward/value for a given action and
+  chooses the best action.
+  """
+  def __init__(self, reward_model: 'sklearn.base.BaseEstimator'):
+    self.reward_model = reward_model
+  def __call__(self, post, comments):
+    return self.reward_model.predict(comments).argmax()
+
+def from_reward(reward_model: 'sklearn.base.BaseEstimator') -> PolicyCommenter:
+  return PolicyCommenter(GreedyContextlessPolicy(reward_model))

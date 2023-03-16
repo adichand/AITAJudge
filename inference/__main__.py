@@ -7,12 +7,14 @@ import sys
 import queue
 
 cwd = os.getcwd()
-inference_folder = os.path.dirname(__file__)
+inference_folder = os.path.dirname(os.path.abspath(__file__))
+
 os.chdir(inference_folder)
 
 from play_audio import stream_valid
 from get_audio import get_videos, load_model, load_posts
 
+os.chdir(cwd)
 
 # https://stackoverflow.com/a/6874161
 class ExThread(threading.Thread):
@@ -55,7 +57,6 @@ async def main():
   model_path = P.model
   limit = P.limit
 
-  os.chdir(cwd)
   model = load_model(model_path)
   os.chdir(os.path.join(inference_folder, 'streams'))
 
