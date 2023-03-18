@@ -49,7 +49,10 @@ async def main():
   import argparse
   p = argparse.ArgumentParser(description="Download audio snippets from gTTS")
   p.add_argument("-path", help="path of the posts.csv from the dataset", default=None)
-  p.add_argument("-model", help="path of the model.pkl file", default='../models/model.pkl')
+  p.add_argument("-model", help="path of the model.pkl file", default=os.path.join(
+    inference_folder,
+    '../models/sklearn_models/saved_models/nn_regressor_nrows=20000_generic.pkl'
+  ))
   p.add_argument("-limit", help="the number of audio clips to download per FFMPEG session", type=int, default=10)
   P = p.parse_args()
 
